@@ -27,10 +27,19 @@ private slots:
 
     void initialisationChamps();
 
+    void timer_initialisation();
+
+    QStringList chargementEtatBoite();
+
+    QStringList chargementEtatContenu();
+
 private:
     // variables globales
+    QTimer* timer1s;
+    QElapsedTimer timer;
     int id_editeur;
     int id_jouet;
+    int id_operateur;
 
     // bdd
     QSqlDatabase db;
@@ -82,6 +91,9 @@ private:
     QLineEdit* page_resultatLineEditPoids;
     QTextEdit* page_resultatTextEditDescription;
     QLineEdit* page_resultatLineEditPrix;
+    QCheckBox* page_resultatCheckBoxIsFull;
+    QComboBox* page_resultatComboBoxEtatBoite;
+    QComboBox* page_resultatComboBoxEtatContenu;
     QDialogButtonBox* page_resultatDialogButtonBox;
 };
 

@@ -7,6 +7,12 @@ Widget::Widget(QWidget *parent)
     // lors du lancement de l'application, on vérifie que le dossier images/images_boites existe bien dans le repertoire actif et on le créé si necessaire
     newDir("images/images_boites");
 
+    // Initialisation du timer pour connaitre le temps de traitement des opérateurs
+    timer.start();
+    timer1s = new QTimer;
+    QObject::connect(timer1s, SIGNAL(timeout()), this, SLOT(UpdateTime()));
+    timer1s->start(1000);
+
     /*
      *
      * structure du programme
@@ -43,8 +49,8 @@ Widget::Widget(QWidget *parent)
     page_loginGroupBoxLayout->addRow("Pseudo :", page_loginLineEditPseudo);
     page_loginGroupBoxLayout->addRow("Mot de passe :", page_loginLineEditPassword);
 
-    page_loginLineEditPseudo->setText("operateur2");
-    page_loginLineEditPassword->setText("password2");
+    //page_loginLineEditPseudo->setText("operateur1");
+    //page_loginLineEditPassword->setText("Password1");
 
     page_loginGroupBox->setLayout(page_loginGroupBoxLayout);
     page_loginLayout->addWidget(page_loginGroupBox);
@@ -62,6 +68,7 @@ Widget::Widget(QWidget *parent)
          *
          * */
 
+        /*
         db = QSqlDatabase::addDatabase("QMYSQL");
         db.setHostName("localhost");
         //db.setUserName("root");
@@ -69,23 +76,30 @@ Widget::Widget(QWidget *parent)
         //db.setPassword("1234");
         db.setPassword(page_loginLineEditPassword->text());
         db.setDatabaseName("yoti_test");
+        */
 
-
-        /*
-            // connexion bdd ovh
-            db = QSqlDatabase::addDatabase("QMYSQL");
-            db.setHostName("rl239142-001.dbaas.ovh.net");
-            db.setPort(35191);
-            //db.setUserName("loic");
-            db.setUserName(page_loginLineEditPseudo->text());
-            //db.setPassword("qZJchZ7T");
-            db.setPassword(page_loginLineEditPassword->text());
-            db.setDatabaseName("jouets");
-*/
+        // connexion bdd ovh
+        db = QSqlDatabase::addDatabase("QMYSQL");
+        db.setHostName("rl239142-001.dbaas.ovh.net");
+        db.setPort(35191);
+        //db.setUserName("loic");
+        db.setUserName(page_loginLineEditPseudo->text());
+        //db.setPassword("qZJchZ7T");
+        db.setPassword(page_loginLineEditPassword->text());
+        db.setDatabaseName("yoti_test");
 
         if(db.open())
         {
             stackedWidget->setCurrentWidget(page_code_barres);
+
+            // on recupere l'id du trieur avec le pseudo
+            QSqlQuery requeteIdTrieur;
+
+            requeteIdTrieur.exec("SELECT * FROM operateur WHERE username='" + page_loginLineEditPseudo->text() + "';");
+            while(requeteIdTrieur.next()) {
+                id_operateur = requeteIdTrieur.value("id_operateur").toInt();
+            }
+            qDebug() << id_operateur;
 
             /*
              * page_code_barres
@@ -166,6 +180,19 @@ Widget::Widget(QWidget *parent)
             page_resultatLineEditPrix = new QLineEdit;
             page_resultatGroupBoxFicheJeuSocieteLayout->addRow("Prix neuf ht eur :", page_resultatLineEditPrix);
 
+            page_resultatCheckBoxIsFull = new QCheckBox;
+            page_resultatGroupBoxFicheJeuSocieteLayout->addRow("Le jeu est complet :", page_resultatCheckBoxIsFull);
+
+            page_resultatComboBoxEtatBoite = new QComboBox;
+            QStringList stringListEtatBoite = chargementEtatBoite();
+            page_resultatComboBoxEtatBoite->addItems(stringListEtatBoite);
+            page_resultatGroupBoxFicheJeuSocieteLayout->addRow("Etat de la boîte :", page_resultatComboBoxEtatBoite);
+
+            page_resultatComboBoxEtatContenu = new QComboBox;
+            QStringList stringListEtatContenu = chargementEtatContenu();
+            page_resultatComboBoxEtatContenu->addItems(stringListEtatContenu);
+            page_resultatGroupBoxFicheJeuSocieteLayout->addRow("Etat du contenu :", page_resultatComboBoxEtatContenu);
+
             page_resultatGroupBoxFicheJeuSociete->setLayout(page_resultatGroupBoxFicheJeuSocieteLayout);
 
             page_resultatWidgetLayout->addWidget(page_resultatGroupBoxFicheJeuSociete);
@@ -199,6 +226,54 @@ Widget::Widget(QWidget *parent)
 Widget::~Widget()
 {
 
+}
+
+QStringList Widget::chargementEtatBoite()
+{
+    QStringList stringListEtats;
+    if(db.open())
+    {
+        QSqlQuery requeteEtats;
+
+        if(requeteEtats.exec("SELECT * FROM etat_boite;"))
+        {
+            while(requeteEtats.next())
+            {
+                stringListEtats << requeteEtats.value("nom_etat_boite").toString();
+            }
+        }
+
+        db.close();
+    }
+    else
+    {
+        qDebug() << "Erreur connection bdd !";
+    }
+    return stringListEtats;
+}
+
+QStringList Widget::chargementEtatContenu()
+{
+    QStringList stringListEtats;
+    if(db.open())
+    {
+        QSqlQuery requeteEtats;
+
+        if(requeteEtats.exec("SELECT * FROM etat_contenu;"))
+        {
+            while(requeteEtats.next())
+            {
+                stringListEtats << requeteEtats.value("nom_etat_contenu").toString();
+            }
+        }
+
+        db.close();
+    }
+    else
+    {
+        qDebug() << "Erreur connection bdd !";
+    }
+    return stringListEtats;
 }
 
 void Widget::completerEditeur()
@@ -253,11 +328,36 @@ void Widget::page_resultatAccepted()
         }
         qDebug() << "id_editeur : " << id_editeur;
 
+        // TODO: récupération id_etat_boite et id_etat_contenu
+        int id_etat_boite;
+        int id_etat_contenu;
+
+        QSqlQuery requeteIdBoite;
+        requeteIdBoite.exec("SELECT id_etat_boite FROM etat_boite WHERE nom_etat_boite = '" + page_resultatComboBoxEtatBoite->currentText() + "';");
+        while(requeteIdBoite.next())
+        {
+            id_etat_boite = requeteIdBoite.value("id_etat_boite").toInt();
+        }
+
+        QSqlQuery requeteIdContenu;
+        requeteIdContenu.exec("SELECT id_etat_contenu FROM etat_contenu WHERE nom_etat_contenu = '" + page_resultatComboBoxEtatContenu->currentText() + "';");
+        while(requeteIdContenu.next())
+        {
+            id_etat_contenu = requeteIdContenu.value("id_etat_contenu").toInt();
+        }
+
         QSqlQuery requeteUpdate;
         //QString requeteUpdateQString = "UPDATE jouet INNER JOIN exemplaire ON jouet.id_jouet = exemplaire.fk_id_jouet AND code_barres_exemplaire = '" + page_code_barresLineEditCodeBarres->text() + "' SET nom_jouet = '" + page_resultatLineEditNom->text() + "', annee_edition = " + page_resultatLineEditEdition->text() + ", age = '" + page_resultatLineEditAge->text() + "', nb_joueurs = '" + page_resultatLineEditNbJoueurs->text() + "', norme_ce = " + page_resultatCheckBoxNormeCE->isChecked() + ", hauteur_cm = " + page_resultatLineEditHauteur->text() + ", longueur_cm = " + page_resultatLineEditLongueur->text() + ", largeur_cm = " + page_resultatLineEditLargeur->text() + ", poids_kg = " + page_resultatLineEditPoids->text() + ", description_jouet = '" + page_resultatTextEditDescription->toPlainText() + "', prix_neuf_ht_eur = " + page_resultatLineEditPrix->text() + ";";
-        QString requeteUpdateQString = "UPDATE jouet INNER JOIN exemplaire ON jouet.id_jouet = exemplaire.fk_id_jouet AND code_barres_exemplaire = '" + page_code_barresLineEditCodeBarres->text() + "' SET nom_jouet = '" + page_resultatLineEditNom->text() + "', annee_edition = " + page_resultatLineEditEdition->text() + ", age = '" + page_resultatLineEditAge->text() + "', nb_joueurs = '" + page_resultatLineEditNbJoueurs->text() + "', norme_ce = " + QString::number(page_resultatCheckBoxNormeCE->isChecked()) + ", hauteur_cm = " + page_resultatLineEditHauteur->text() + ", longueur_cm = " + page_resultatLineEditLongueur->text() + ", largeur_cm = " + page_resultatLineEditLargeur->text() + ", poids_kg = " + page_resultatLineEditPoids->text() + ", description_jouet = '" + page_resultatTextEditDescription->toPlainText() + "', prix_neuf_ht_eur = " + page_resultatLineEditPrix->text() + ", fk_id_editeur = " + QString::number(id_editeur) + ";";
+        QString requeteUpdateQString = "UPDATE jouet INNER JOIN exemplaire ON jouet.id_jouet = exemplaire.fk_id_jouet AND code_barres_exemplaire = '" + page_code_barresLineEditCodeBarres->text() + "' SET nom_jouet = '" + page_resultatLineEditNom->text() + "', annee_edition = " + page_resultatLineEditEdition->text() + ", age = '" + page_resultatLineEditAge->text() + "', nb_joueurs = '" + page_resultatLineEditNbJoueurs->text() + "', norme_ce = " + QString::number(page_resultatCheckBoxNormeCE->isChecked()) + ", hauteur_cm = " + page_resultatLineEditHauteur->text() + ", longueur_cm = " + page_resultatLineEditLongueur->text() + ", largeur_cm = " + page_resultatLineEditLargeur->text() + ", poids_kg = " + page_resultatLineEditPoids->text() + ", description_jouet = '" + page_resultatTextEditDescription->toPlainText() + "', prix_neuf_ht_eur = " + page_resultatLineEditPrix->text() + ", fk_id_editeur = " + QString::number(id_editeur) + ", is_full = " + QString::number(page_resultatCheckBoxIsFull->isChecked()) + ", fk_id_etat_boite = " + QString::number(id_etat_boite) + ", fk_id_etat_contenu = " + QString::number(id_etat_contenu) + ";";
         qDebug() << requeteUpdateQString;
         //page_resultatLineEditEditeur->setText(requeteFindCodeBarres.value("nom_editeur").toString());
+
+        // Ajout temps de traitement
+        QString sTime = QTime::fromMSecsSinceStartOfDay(timer.elapsed()).toString("hh") +":"+ QTime::fromMSecsSinceStartOfDay(timer.elapsed()).toString("mm") +":"+ QTime::fromMSecsSinceStartOfDay(timer.elapsed()).toString("ss");
+        qDebug() << sTime;
+        QSqlQuery requeteInsertEstTraite;
+        requeteInsertEstTraite.exec("INSERT INTO est_traite ( fk_code_barres_exemplaire, fk_id_operateur, date, temps ) VALUES ( '" + page_code_barresLineEditCodeBarres->text() + "', " + QString::number(id_operateur) + ", CURDATE(), '" + sTime + "' );");
+
 
         if(requeteUpdate.exec(requeteUpdateQString))
         {
@@ -276,8 +376,18 @@ void Widget::page_resultatAccepted()
     }
 }
 
+void Widget::timer_initialisation()
+{
+    timer.restart();
+    timer1s = new QTimer;
+    QObject::connect(timer1s, SIGNAL(timeout()), this, SLOT(UpdateTime()));
+    timer1s->start(1000);
+}
+
 void Widget::page_code_barresAccepted()
 {
+    timer_initialisation();
+
     // recherche dans la table exemplaire par code-barres
     if(db.open())
     {
